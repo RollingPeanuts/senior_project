@@ -2,16 +2,27 @@
 #
 # To get started, open a terminal and type 'roslaunch interbotix_xsarm_control xsarm_control.launch robot_model:=px100'
 # Then change to this directory and type 'python ee_pose_components.py'
+from google.cloud import pubsub_v1
+
 from interbotix_xs_modules.arm import InterbotixManipulatorXS
 from collections import namedtuple
 from typing import Tuple
 import math
+
+
+# Google Pub/Sub Ids
+# ADJUST AS NEEDED
+project_id = "robotic-haven-256402"
+subscription_id = "my-sub"
 
 # 3D coordinates and orientation for robot arm to reach
 Robot_Coordinate = namedtuple('Robot_Coordinate', ['x', 'y', 'z', 'pitch'])
 
 # 2D coordinate representing the position on the board with the given row and column
 Board_Coordinate = namedtuple('Board_Coordinate', ['row', 'col'])
+
+# Robot arm type
+bot = InterbotixManipulatorXS("px100", "arm", "gripper")
 
 # Arbitrary coordinate to calibrate rest of positions of board
 # Choosing coordinates closer to the center of the board will yield more accurate robot arm positions
@@ -25,7 +36,7 @@ unit_length = 0.045
 
 
 # Run manual calibration on configured base coordinate. Base coordinate will be used to extrapolate all remaining 
-def calibrate_base_coordinates(bot: InterbotixManipulatorXS) -> None:
+def calibrate_base_coordinates() -> None:
     global base_coordinates
     bot.arm.go_to_home_pose()
     bot.arm.set_ee_pose_components(x=base_coordinates.x, y=base_coordinates.y, z=base_coordinates.z, pitch=base_coordinates.pitch)
@@ -80,7 +91,7 @@ def get_destination_coordinates(row: int, col: int) -> Robot_Coordinate:
 
 # Grabs the specified type of piece
 # TODO: Create 3 places to grab pieces
-def grab_obj(bot: InterbotixManipulatorXS, piece: int) -> None:
+def grab_obj(piece: int) -> None:
     bot.arm.go_to_home_pose()
     bot.gripper.open()
     bot.arm.set_ee_pose_components(x=0, y=0.13, z=0.22, pitch=0.2)
@@ -92,7 +103,7 @@ def grab_obj(bot: InterbotixManipulatorXS, piece: int) -> None:
 
 
 # Places an object at set position
-def place_obj(bot: InterbotixManipulatorXS, coords: Robot_Coordinate) -> None:
+def place_obj(coords: Robot_Coordinate) -> None:
     bot.arm.go_to_home_pose()
     bot.arm.set_ee_pose_components(x=coords.x, y=coords.y, z=0.22, pitch=0.2) # position arm to hover over drop position
     #bot.arm.set_ee_pose_components(x=0.15, y=0.1, z=0.035, pitch=1.5) # most left, 2nd farthest out
@@ -108,21 +119,54 @@ def place_obj(bot: InterbotixManipulatorXS, coords: Robot_Coordinate) -> None:
     bot.gripper.close()
 
 
-def main():
-    bot = InterbotixManipulatorXS("px100", "arm", "gripper")
-    bot.arm.go_to_sleep_pose()
-
-    calibrate_base_coordinates(bot)
+# Recieves move commands from pub/sub and executes them with the robot arm
+def handle_movement_request(message: pubsub_v1.subscriber.message.Message) -> None:
+    print(f"Received {message}.")
+    move_cmd = message.data.decode('utf-8').split() 
+    if (len(move_cmd) < 3):
+        print("Invalid command")
+        message.ack()
+        return
 
     #TODO: Finalize conversion from hexagon number to row/col format
-    while (True):
-        (row, col, piece) = input("Insert move of robot (row, col, piece):").split()
-        coords = get_destination_coordinates(int(row), int(col))
+    # Translate position to robot coordinates
+    (row, col, piece) = move_cmd 
+    coords = get_destination_coordinates(int(row), int(col))
 
-        #bot.arm.go_to_home_pose()
-        #grab_obj(bot, piece)
-        place_obj(bot, coords)
-        bot.arm.go_to_sleep_pose()
+    # Execute desired action
+    grab_obj(piece)
+    place_obj(coords)
+    bot.arm.go_to_sleep_pose()
+    message.ack()
+
+
+def main():
+    # Robot arm initialization
+    bot.arm.go_to_sleep_pose()
+    calibrate_base_coordinates()
+    bot.arm.go_to_home_pose()
+    bot.arm.go_to_sleep_pose()
+
+    # Google Pub/Sub subscriber setup
+    subscriber = pubsub_v1.SubscriberClient()
+    # The `subscription_path` method creates a fully qualified identifier
+    # in the form `projects/{project_id}/subscriptions/{subscription_id}`
+    subscription_path = subscriber.subscription_path(project_id, subscription_id)
+    streaming_pull_future = subscriber.subscribe(subscription_path, callback=handle_movement_request)
+    print(f"Listening for messages on {subscription_path}..\n")
+
+    # Wrap subscriber in a 'with' block to automatically call close() when done.
+    with subscriber:
+        try:
+            # When `timeout` is not set, result() will block indefinitely,
+            # unless an exception is encountered first.
+            streaming_pull_future.result()
+        except KeyboardInterrupt:
+            streaming_pull_future.cancel()  # Trigger the shutdown.
+            streaming_pull_future.result()  # Block until the shutdown is complete.
+
+    bot.arm.go_to_home_pose()
+    bot.arm.go_to_sleep_pose()
 
 if __name__=='__main__':
     main()
