@@ -25,7 +25,8 @@ unit_length = 0.045
 
 
 # Run manual calibration on configured base coordinate. Base coordinate will be used to extrapolate all remaining 
-def calibrate_base_coordinates() -> None:
+def calibrate_base_coordinates(bot: InterbotixManipulatorXS) -> None:
+    global base_coordinates
     bot.arm.go_to_home_pose()
     bot.arm.set_ee_pose_components(x=base_coordinates.x, y=base_coordinates.y, z=base_coordinates.z, pitch=base_coordinates.pitch)
 
@@ -41,7 +42,6 @@ def calibrate_base_coordinates() -> None:
         # Only store the new coordinates if such a move is possible for the arm 
         _, is_valid_move = bot.arm.set_ee_pose_components(x=new_coordinates.x, y=new_coordinates.y, z=new_coordinates.z, pitch=new_coordinates.pitch)
         if (is_valid_move):
-            global base_coordinates
             base_coordinates = new_coordinates
 
 
@@ -112,16 +112,17 @@ def main():
     bot = InterbotixManipulatorXS("px100", "arm", "gripper")
     bot.arm.go_to_sleep_pose()
 
-    calibrate_base_coordinates()
+    calibrate_base_coordinates(bot)
 
     #TODO: Finalize conversion from hexagon number to row/col format
-    (row, col, piece) = input("Insert move of robot (row, col, piece):").split()
-    coords = get_destination_coordinates(row, col)
+    while (True):
+        (row, col, piece) = input("Insert move of robot (row, col, piece):").split()
+        coords = get_destination_coordinates(int(row), int(col))
 
-    #bot.arm.go_to_home_pose()
-    grab_obj(bot, piece)
-    place_obj(bot, coords)
-    bot.arm.go_to_sleep_pose()
+        #bot.arm.go_to_home_pose()
+        #grab_obj(bot, piece)
+        place_obj(bot, coords)
+        bot.arm.go_to_sleep_pose()
 
 if __name__=='__main__':
     main()
