@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-import mediapipe as mp
 import time
 from math import dist
 from google.cloud import pubsub_v1
@@ -66,7 +65,7 @@ def get_board_and_background(img):
 def get_canny_edges(board):
     board_gray = cv2.cvtColor(board, cv2.COLOR_BGR2GRAY)
     low_threshold = 20
-    high_threshold = 550
+    high_threshold = 575
     edges = cv2.Canny(board_gray, low_threshold, high_threshold)
     
     # These transformations help fill in the hex edges such that watershed doesn't "leak"
@@ -193,9 +192,9 @@ def find_and_send_moves(before, after):
         for i, v in enumerate(vertex_list):
             dists.append((dist((v[0],v[1]),(centerX,centerY)), i))
         dists.sort(key = lambda x: x[0])
-        data_str += detect_piece(contours[0]) + ' ' + str(dists[0][1]) + ' '
+        data_str += detect_piece(contours[0]) + ' ' + str(dists[0][1]) + ','
         # Data must be a bytestring
-    data = data_str.rstrip().encode("utf-8")
+    data = data_str[:-1].encode("utf-8")
     if data_str:
         future = publisher.publish(topic_path, data)
         print(future.result())
@@ -258,9 +257,7 @@ def main():
             # this works just for the demo, otherwise reset to none
             # saves pressing a space to take another before pic
             before = after
-
     vid.release()
-    
 
 if __name__ == "__main__":
     main()
