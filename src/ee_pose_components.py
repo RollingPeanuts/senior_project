@@ -119,7 +119,8 @@ def place_obj(coords: Robot_Coordinate) -> None:
     bot.gripper.close()
 
 
-def vertex_to_coord(vertex_num):
+# Converts vertex number to board coordinate
+def vertex_to_coord(vertex_num: int) -> Board_Coordinate:
     if (vertex_num > 53): # there are 54 total verticies
         return None
 
@@ -148,23 +149,25 @@ def vertex_to_coord(vertex_num):
         return Board_Coordinate(row, col)
 
 
-def row_offset_to_col_num(row_num, offset, is_vertex):
+# Given a row and the relative offset to the row (the ith vertex/edge of the row) and whether the number is an edge or vertex, returns the board coordinate column for the point
+def row_offset_to_col_num(row_num: int, offset: int, is_vertex: bool) -> int:
     row = abs(row_num)
-    # Vertices can only be even numbers
     if (is_vertex): 
+        # Vertices can only be even numbers
         if (row == 10):
             vertex_offsets = [1]
             num_vertices = 2
         elif (row == 8):
             vertex_offsets = [5, 3]
             num_vertices = 4
-        elif (row % 4 == 0):
+        elif (row % 4 == 0): # For row 0 and 4
             vertex_offsets = [11, 5, 3]
             num_vertices = 6
-        else:
+        else: # FOr row 2 and 6
             vertex_offsets = [9, 7 ,1]
             num_vertices = 6
 
+        # If the vertex is on the right side of the board, it has a negative column index
         if (num_vertices / 2 <= offset):
             return vertex_offsets[num_vertices - offset - 1] * -1 # cols on the right are negative
         return vertex_offsets[offset]
@@ -176,26 +179,31 @@ def row_offset_to_col_num(row_num, offset, is_vertex):
 # Recieves move commands from pub/sub and executes them with the robot arm
 def handle_movement_request(message: pubsub_v1.subscriber.message.Message) -> None:
     print(f"Received {message}.")
-    cmd = message.data.decode('utf-8').split() 
-    if (len(cmd) != 2):
-        print("Invalid command")
-        message.ack()
-        return
 
-    #TODO: Finalize conversion from hexagon number to row/col format
-    # Translate position to robot coordinates
-    #(row, col, piece) = move_cmd 
-    (piece_type, location_enum) = cmd
-    board_coord = vertex_to_coord(int(location_enum)) 
-    #coords = get_destination_coordinates(int(row), int(col))
-    coords = get_destination_coordinates(board_coord.row, board_coord.col)
+    # Commands arrive in the form of "<piece_type> <location>, <piece_type2> <location2>" ... and so on 
+    # Commands can contain indefinite actions (not constrained to just two actions)
+    actions = message.data.decode('utf-8').split(',') 
+    for cmd in actions:
+        curr_cmd = (cmd.split())
 
-    # Execute desired action
-    grab_obj(piece_type)
-    place_obj(coords)
-    bot.arm.go_to_sleep_pose()
+        if (len(curr_cmd) != 2):
+            print("Invalid command: \"{}\"".format(" ".join(cmd)))
+            continue
+
+        # Translate vertex number to coordinates, then translate coordinate to robot coordinates
+        #print(cmd)
+        (piece_type, location_enum) = curr_cmd
+        print("Placing piece at location {}".format(location_enum))
+        board_coord = vertex_to_coord(int(location_enum)) 
+        robot_coords = get_destination_coordinates(board_coord.row, board_coord.col)
+
+        # Execute desired action
+        grab_obj(piece_type)
+        place_obj(robot_coords)
+        bot.arm.go_to_sleep_pose()
+
     message.ack()
-
+        
 
 def main():
     # Robot arm initialization
