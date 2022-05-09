@@ -1,6 +1,9 @@
 import cv2
 import numpy as np
-from time import sleep
+import mediapipe as mp
+import time
+from math import dist
+from google.cloud import pubsub_v1
 
 # Source for get_board_and_background and helper functions:
 # https://github.com/Vieja/Catan-Image-Recognition/blob/master/catan.py
@@ -158,18 +161,106 @@ def get_vertices(watershed_hexes):
         vertices.extend(row_list)
     return vertices_img, vertices
 
+vertex_list = None
+project_id = "robotic-haven-256402"
+topic_id = "test-topic"
+subscription_id = "player_1"
+publisher = pubsub_v1.PublisherClient()
+topic_path = publisher.topic_path(project_id, topic_id)
+
+def detect_piece(contour):
+    return 's'
+
+def find_and_send_moves(before, after):
+    before, background = get_board_and_background(before)
+    after = cut_background(after, background)
+    # subtract to get difference
+    diff =  cv2.subtract(before, after)
+    # create grayscale of diff
+    gray =  cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
+    # create a mask for the non black values (above 10) 
+    ret,thresh1 = cv2.threshold(gray,50,255,cv2.THRESH_BINARY)
+    # find contours in mask
+    contours, _ = cv2.findContours(thresh1, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # calculate the center of each contour using the boundingrect
+    print("Num contours: ", len(contours))
+    data_str = ''
+    for cnt in contours:
+        x,y,w,h = cv2.boundingRect(cnt)
+        centerX = x+ int(w/2)
+        centerY = y+ int(h/2)
+        dists = []
+        for i, v in enumerate(vertex_list):
+            dists.append((dist((v[0],v[1]),(centerX,centerY)), i))
+        dists.sort(key = lambda x: x[0])
+        data_str += detect_piece(contours[0]) + ' ' + str(dists[0][1]) + ' '
+        # Data must be a bytestring
+    data = data_str.rstrip().encode("utf-8")
+    if data_str:
+        future = publisher.publish(topic_path, data)
+        print(future.result())
+        print(f"Published messages to {topic_path}.")
+    cv2.imshow("diff", thresh1)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows() 
+
 def main():
-    vid = cv2.VideoCapture(0)
-    sleep(1)
+    # Initialize video stream
+    vid = cv2.VideoCapture(1)
+    time.sleep(1)
+
+    # Take first image to initialize vertices data structures
     _, img = vid.read()
     hexes = get_hex_grid(img)
     cv2.imshow('hexes', hexes)
     vertices_img, vertices = get_vertices(hexes)
+    global vertex_list
+    vertex_list = vertices
     vertices_img = overlay_grey_on_rgb(vertices_img, img, [0,0,255])
     for i, v in enumerate(vertices):
         vertices_img = cv2.putText(vertices_img, str(i), (v[0], v[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
     cv2.imshow('vertices', vertices_img)
     cv2.waitKey(0)
+    cv2.namedWindow("live video")
+    cv2.namedWindow("before")
+    cv2.namedWindow("after")
+    # https://stackoverflow.com/questions/34588464/python-how-to-capture-image-from-webcam-on-click-using-opencv
+    before, after = None, None
+    is_before = True
+    while True:
+        ret, frame = vid.read()
+        if not ret:
+            print("failed to grab frame")
+            break
+        cv2.imshow("live video", frame)
+
+        k = cv2.waitKey(1)
+        if k%256 == 27:
+            # ESC pressed
+            print("Escape hit, closing...")
+            break
+        elif k%256 == 32:
+            # SPACE pressed
+            if is_before:
+                before = frame
+                after = None
+                cv2.imshow("before", before)
+                print("before pic taken")
+                is_before = False
+            else:
+                after = frame
+                cv2.imshow("after", after)
+                print("after pic taken")
+                is_before = True
+        if after is not None and before is not None:
+            find_and_send_moves(before, after)
+            after = None
+            # this works just for the demo, otherwise reset to none
+            # saves pressing a space to take another before pic
+            before = after
+
+    vid.release()
+    
 
 if __name__ == "__main__":
     main()
