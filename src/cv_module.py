@@ -107,7 +107,7 @@ def overlay_grey_on_rgb(grey, rgb, color):
     grey_rgb = cv2.cvtColor(grey, cv2.COLOR_GRAY2RGB)
     grey_rgb[grey==255] = color
     return cv2.addWeighted(rgb,.5,grey_rgb,.5,0)
-
+    
 # References:
 # https://docs.opencv.org/2.4/modules/imgproc/doc/feature_detection.html?highlight=cornerharris#cornerharris
 # https://www.geeksforgeeks.org/python-opencv-find-center-of-contour/
@@ -143,8 +143,6 @@ def get_vertices(watershed_hexes):
             vertex_list.append((cx,cy))
             vertices_img = cv2.circle(vertices_img, (cx, cy), 7, 255, -1)
     cv2.imshow("vertex_circles", vertices_img)
-    print(vertex_list)
-    print(len(vertex_list))
     # Sort list by increasing y
     vertex_list.sort(key = lambda x: x[1], reverse=True)
     vertices = []
@@ -158,9 +156,6 @@ def get_vertices(watershed_hexes):
                 row_list.append(vertex_list.pop(0))
         row_list.sort(key = lambda x: x[0])
         vertices.extend(row_list)
-    # Add label to each vertex   
-    for i, v in enumerate(vertices):
-        vertices_img = cv2.putText(vertices_img, str(i), (v[0], v[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
     return vertices_img, vertices
 
 def main():
@@ -171,6 +166,8 @@ def main():
     cv2.imshow('hexes', hexes)
     vertices_img, vertices = get_vertices(hexes)
     vertices_img = overlay_grey_on_rgb(vertices_img, img, [0,0,255])
+    for i, v in enumerate(vertices):
+        vertices_img = cv2.putText(vertices_img, str(i), (v[0], v[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
     cv2.imshow('vertices', vertices_img)
     cv2.waitKey(0)
 
