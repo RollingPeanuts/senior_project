@@ -119,22 +119,79 @@ def place_obj(coords: Robot_Coordinate) -> None:
     bot.gripper.close()
 
 
+def vertex_to_coord(vertex_num):
+    if (vertex_num > 53): # there are 54 total verticies
+        return None
+
+    # Lowest 2 rows have 2 and 4 vertices respectively
+    if (vertex_num < 6):
+        if (vertex_num < 2):
+            row = -10
+            col = row_offset_to_col_num(row, vertex_num, True)
+            return Board_Coordinate(row, col)
+        else:
+            row = -8 
+            col = row_offset_to_col_num(row, vertex_num - 2, True) 
+            return Board_Coordinate(row, col)
+    elif (vertex_num >= 48): # Highest 2 rows have 4 and 2 vertices respectively
+        if (vertex_num >= 52):
+            row = 10
+            col = row_offset_to_col_num(row, vertex_num - 52, True)
+            return Board_Coordinate(row, col)
+        else: 
+            row = 8
+            col = row_offset_to_col_num(row, vertex_num - 48, True)
+            return Board_Coordinate(row, col)
+    else: # All other rows have 6 vertices
+        row = (vertex_num // 6 + 1) * 2 - 10 # Need to account for the first 6 vertices taking up 2 rows rather than just 1
+        col = row_offset_to_col_num(row, vertex_num % 6, True)
+        return Board_Coordinate(row, col)
+
+
+def row_offset_to_col_num(row_num, offset, is_vertex):
+    row = abs(row_num)
+    # Vertices can only be even numbers
+    if (is_vertex): 
+        if (row == 10):
+            vertex_offsets = [1]
+            num_vertices = 2
+        elif (row == 8):
+            vertex_offsets = [5, 3]
+            num_vertices = 4
+        elif (row % 4 == 0):
+            vertex_offsets = [11, 5, 3]
+            num_vertices = 6
+        else:
+            vertex_offsets = [9, 7 ,1]
+            num_vertices = 6
+
+        if (num_vertices / 2 <= offset):
+            return vertex_offsets[num_vertices - offset - 1] * -1 # cols on the right are negative
+        return vertex_offsets[offset]
+
+    else:
+        return -1
+
+
 # Recieves move commands from pub/sub and executes them with the robot arm
 def handle_movement_request(message: pubsub_v1.subscriber.message.Message) -> None:
     print(f"Received {message}.")
-    move_cmd = message.data.decode('utf-8').split() 
-    if (len(move_cmd) < 3):
+    cmd = message.data.decode('utf-8').split() 
+    if (len(cmd) != 2):
         print("Invalid command")
         message.ack()
         return
 
     #TODO: Finalize conversion from hexagon number to row/col format
     # Translate position to robot coordinates
-    (row, col, piece) = move_cmd 
-    coords = get_destination_coordinates(int(row), int(col))
+    #(row, col, piece) = move_cmd 
+    (piece_type, location_enum) = cmd
+    board_coord = vertex_to_coord(int(location_enum)) 
+    #coords = get_destination_coordinates(int(row), int(col))
+    coords = get_destination_coordinates(board_coord.row, board_coord.col)
 
     # Execute desired action
-    grab_obj(piece)
+    grab_obj(piece_type)
     place_obj(coords)
     bot.arm.go_to_sleep_pose()
     message.ack()
