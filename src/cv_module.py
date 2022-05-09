@@ -103,9 +103,15 @@ def get_hex_grid(img):
     hexes = get_watershed(canny, markers, background)
     return hexes
 
+def overlay_grey_on_rgb(grey, rgb, color):
+    grey_rgb = cv2.cvtColor(grey, cv2.COLOR_GRAY2RGB)
+    grey_rgb[grey==255] = color
+    return cv2.addWeighted(rgb,.5,grey_rgb,.5,0)
+
 # References:
 # https://docs.opencv.org/2.4/modules/imgproc/doc/feature_detection.html?highlight=cornerharris#cornerharris
 # https://www.geeksforgeeks.org/python-opencv-find-center-of-contour/
+# Returns vertices circles, and list of vertices in sorted order according to our number scheme
 def get_vertices(watershed_hexes):
     corner_probs = cv2.cornerHarris(watershed_hexes,21,23,0.04)
 
@@ -125,18 +131,37 @@ def get_vertices(watershed_hexes):
     cv2.imshow("rough_vertices", rough_vertices)
 
     # Now you have the rough_vertices, make them contours and find the centroid
+    # Save all vertex centroids in a list
     contours, _ = cv2.findContours(rough_vertices, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-    vertices = np.zeros(watershed_hexes.shape[:2], dtype='uint8')
+    vertices_img = np.zeros(watershed_hexes.shape[:2], dtype='uint8')
+    vertex_list = []
     for i in contours:
         M = cv2.moments(i)
         if M['m00'] != 0:
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
-            # vertices = cv2.drawContours(vertices, [i], -1, 255, 2)
-            vertices = cv2.circle(vertices, (cx, cy), 7, 255, -1)
-    cv2.imshow("vertices", vertices)
-
-    return vertices
+            vertex_list.append((cx,cy))
+            vertices_img = cv2.circle(vertices_img, (cx, cy), 7, 255, -1)
+    cv2.imshow("vertex_circles", vertices_img)
+    print(vertex_list)
+    print(len(vertex_list))
+    # Sort list by increasing y
+    vertex_list.sort(key = lambda x: x[1], reverse=True)
+    vertices = []
+    for row_size in [2,4,6,6,6,6,6,6,6,4,2]:
+        # Take one row at a time and sort them left to right.
+        # If we simply sort by two keys (y then x), then if the points
+        # are not exactly parallel there is a chance some rows are out of order
+        row_list = []
+        for i in range(row_size):
+            if vertex_list:
+                row_list.append(vertex_list.pop(0))
+        row_list.sort(key = lambda x: x[0])
+        vertices.extend(row_list)
+    # Add label to each vertex   
+    for i, v in enumerate(vertices):
+        vertices_img = cv2.putText(vertices_img, str(i), (v[0], v[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+    return vertices_img, vertices
 
 def main():
     vid = cv2.VideoCapture(0)
@@ -144,7 +169,9 @@ def main():
     _, img = vid.read()
     hexes = get_hex_grid(img)
     cv2.imshow('hexes', hexes)
-    vertices = get_vertices(hexes)
+    vertices_img, vertices = get_vertices(hexes)
+    vertices_img = overlay_grey_on_rgb(vertices_img, img, [0,0,255])
+    cv2.imshow('vertices', vertices_img)
     cv2.waitKey(0)
 
 if __name__ == "__main__":
