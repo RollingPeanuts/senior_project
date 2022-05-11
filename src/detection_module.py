@@ -201,7 +201,6 @@ def find_and_send_moves(before, after):
         print(f"Published messages to {topic_path}.")
     cv2.imshow("diff", thresh1)
     cv2.waitKey(0)
-    cv2.destroyAllWindows() 
 
 def main():
     # Initialize video stream
@@ -258,8 +257,7 @@ def main():
             # saves pressing a space to take another before pic
             before = after
     vid.release()
+    cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     main()
-
-    
