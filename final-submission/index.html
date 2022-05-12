@@ -13,9 +13,11 @@
             <b>Abstract:</b>
             Many of us have played games like chess online. The online versions of multiplayer board games are fun, but lack the tactile experience of physically moving game pieces and seeing the board and gameplay live in 3-D space. But what if you could still play with others online, but use the real-life, physical board game in a straightforward way? To explore this question, for our senior project we designed and built a system called Gammix for such mixed-reality multiplayer board game experiences. Gammix brings the offline board games experience online by using a robotic arm to recreate opponents' actions on your physical board. Each move is captured using a standard webcam, interpreted using computer vision, then sent over the internet and replicated using a robotic arm on the opponent's boards. We implemented Gammix and demonstrated its feasibility for the board game Settlers of Catan, using a standard USB webcam and Trossen PincherX-100 robotic arm. We make use of Python, OpenCV, and the ROS MoveIt framework, as well as Google Cloud Pub/Sub for communication over the internet. We use classical computer vision techniques, including thresholding, Canny edge detection, the watershed algorithm, and Harris corner detection to detect the board and subsequent moves. We also designed our own representation of the board state, to translate coordinates from the camera frame to coordinates in the robotic arm frame. The system works end-to-end: after one player makes their moves on the board and ends their turn, Gammix detects their moves locally, then issues the commands over the internet for the opponents’ robot arms to replicate them remotely.
         </p>
-        <a href = 'Liu_Chien_Proposal.pdf'>Project Proposal</a>
-        <br>
         <a href='Liu_Chien_CPSC490.pdf'>Final Report</a>
+        <br>
+        <a href='https://github.com/RollingPeanuts/senior_project'>Github Repository</a>
+        <br>
+        <a href = 'Liu_Chien_Proposal.pdf'>Project Proposal</a>
         <br>
     </body>
 </html>
