@@ -10,5 +10,5 @@ First set up the Catan board, with circular number chips blue side up, and with 
 
 On that computer run: python /src/detection_module.py
 
-Set up a Trossen PincherX 100 Robot Arm at the same orientation of the webcam, connected to a Linux computer.
+On a seperate Catan board, \set up a Trossen PincherX 100 Robot Arm at the same orientation of the webcam, connected to a Linux computer.
 Start the robot arm code by running: ./start_arm.sh actuator_module.py
